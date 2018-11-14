@@ -23,6 +23,9 @@ from validation import val_epoch
 import test
 
 if __name__ == '__main__':
+    
+    # device = torch.device(1)
+    
     opt = parse_opts()
     if opt.root_path != '':
         opt.video_path = os.path.join(opt.root_path, opt.video_path)
