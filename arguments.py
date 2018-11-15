@@ -1,8 +1,12 @@
 import argparse
 
 
-def parse_opts():
+def get_args():
     parser = argparse.ArgumentParser()
+    
+    ##############################################
+    # Paths
+    ##############################################
     parser.add_argument(
         '--root_path',
         default='/root/data/ActivityNet',
@@ -24,24 +28,59 @@ def parse_opts():
         type=str,
         help='Result directory path')
     parser.add_argument(
-        '--dataset',
-        default='kinetics',
+        '--resume_path',
+        default='',
         type=str,
-        help='Used dataset (activitynet | kinetics | ucf101 | hmdb51)')
+        help='Save data (.pth) of previous training')
+    parser.add_argument(
+        '--pretrain_path', default='', type=str, help='Pretrained model (.pth)')
+    
+    ##############################################
+    # Model
+    ##############################################
+    parser.add_argument(
+        '--model',
+        default='resnet',
+        type=str,
+        help='(resnet | preresnet | wideresnet | resnext | densenet | ')
+    parser.add_argument(
+        '--model_depth',
+        default=18,
+        type=int,
+        help='Depth of resnet (10 | 18 | 34 | 50 | 101)')
+    parser.add_argument(
+        '--resnet_shortcut',
+        default='B',
+        type=str,
+        help='Shortcut type of resnet (A | B)')
+    parser.add_argument(
+        '--wide_resnet_k', default=2, type=int, help='Wide resnet k')
+    parser.add_argument(
+        '--resnext_cardinality',
+        default=32,
+        type=int,
+        help='ResNeXt cardinality')
     parser.add_argument(
         '--n_classes',
         default=400,
         type=int,
         help=
-        'Number of classes (activitynet: 200, kinetics: 400, ucf101: 101, hmdb51: 51)'
-    )
+        'Number of classes (activitynet: 200, kinetics: 400, ucf101: 101, hmdb51: 51)')
     parser.add_argument(
         '--n_finetune_classes',
         default=400,
         type=int,
         help=
-        'Number of classes for fine-tuning. n_classes is set to the number when pretraining.'
-    )
+        'Number of classes for fine-tuning. n_classes is set to the number when pretraining.')
+    
+    ##############################################
+    # Dataset
+    ##############################################
+    parser.add_argument(
+        '--dataset',
+        default='kinetics',
+        type=str,
+        help='Used dataset (activitynet | kinetics | ucf101 | hmdb51)')
     parser.add_argument(
         '--sample_size',
         default=112,
@@ -52,6 +91,10 @@ def parse_opts():
         default=16,
         type=int,
         help='Temporal duration of inputs')
+    
+    ##############################################
+    # Data Augmentation
+    ##############################################
     parser.add_argument(
         '--initial_scale',
         default=1.0,
@@ -72,8 +115,27 @@ def parse_opts():
         default='corner',
         type=str,
         help=
-        'Spatial cropping method in training. random is uniform. corner is selection from 4 corners and 1 center.  (random | corner | center)'
-    )
+        'Spatial cropping method in training. random is uniform. corner is selection from 4 corners and 1 center.  (random | corner | center)')
+    parser.add_argument(
+        '--no_hflip',
+        action='store_true',
+        help='If true holizontal flipping is not performed.')
+    parser.set_defaults(no_hflip=False)
+    parser.add_argument(
+        '--norm_value',
+        default=1,
+        type=int,
+        help=
+        'If 1, range of inputs is [0-255]. If 255, range of inputs is [0-1].')
+    
+    ##############################################
+    # Training
+    ##############################################
+    parser.add_argument(
+        '--no_train',
+        action='store_true',
+        help='If true, training is not performed.')
+    parser.set_defaults(no_train=False)
     parser.add_argument(
         '--learning_rate',
         default=0.1,
@@ -113,8 +175,7 @@ def parse_opts():
         '--lr_patience',
         default=10,
         type=int,
-        help='Patience of LR scheduler. See documentation of ReduceLROnPlateau.'
-    )
+        help='Patience of LR scheduler. See documentation of ReduceLROnPlateau.')
     parser.add_argument(
         '--batch_size', default=128, type=int, help='Batch Size')
     parser.add_argument(
@@ -127,35 +188,30 @@ def parse_opts():
         default=1,
         type=int,
         help=
-        'Training begins at this epoch. Previous trained model indicated by resume_path is loaded.'
-    )
+        'Training begins at this epoch. Previous trained model indicated by resume_path is loaded.')
     parser.add_argument(
-        '--n_val_samples',
-        default=3,
+        '--checkpoint',
+        default=10,
         type=int,
-        help='Number of validation samples for each activity')
-    parser.add_argument(
-        '--resume_path',
-        default='',
-        type=str,
-        help='Save data (.pth) of previous training')
-    parser.add_argument(
-        '--pretrain_path', default='', type=str, help='Pretrained model (.pth)')
-    parser.add_argument(
-        '--ft_begin_index',
-        default=0,
-        type=int,
-        help='Begin block index of fine-tuning')
-    parser.add_argument(
-        '--no_train',
-        action='store_true',
-        help='If true, training is not performed.')
-    parser.set_defaults(no_train=False)
+        help='Trained model is saved at every this epochs.')
+    
+    ##############################################
+    # Validation
+    ##############################################
     parser.add_argument(
         '--no_val',
         action='store_true',
         help='If true, validation is not performed.')
     parser.set_defaults(no_val=False)
+    parser.add_argument(
+        '--n_val_samples',
+        default=3,
+        type=int,
+        help='Number of validation samples for each activity')
+    
+    ##############################################
+    # Testing
+    ##############################################
     parser.add_argument(
         '--test', action='store_true', help='If true, test is performed.')
     parser.set_defaults(test=False)
@@ -179,55 +235,45 @@ def parse_opts():
         action='store_true',
         help='If true, output for each clip is not normalized using softmax.')
     parser.set_defaults(no_softmax_in_test=False)
+    
+    ##############################################
+    # Other
+    ##############################################
     parser.add_argument(
-        '--no_cuda', action='store_true', help='If true, cuda is not used.')
-    parser.set_defaults(no_cuda=False)
+        '--ft_begin_index',
+        default=0,
+        type=int,
+        help='Begin block index of fine-tuning')
     parser.add_argument(
         '--n_threads',
         default=4,
         type=int,
         help='Number of threads for multi-thread loading')
     parser.add_argument(
-        '--checkpoint',
-        default=10,
-        type=int,
-        help='Trained model is saved at every this epochs.')
-    parser.add_argument(
-        '--no_hflip',
-        action='store_true',
-        help='If true holizontal flipping is not performed.')
-    parser.set_defaults(no_hflip=False)
-    parser.add_argument(
-        '--norm_value',
-        default=1,
-        type=int,
-        help=
-        'If 1, range of inputs is [0-255]. If 255, range of inputs is [0-1].')
-    parser.add_argument(
-        '--model',
-        default='resnet',
-        type=str,
-        help='(resnet | preresnet | wideresnet | resnext | densenet | ')
-    parser.add_argument(
-        '--model_depth',
-        default=18,
-        type=int,
-        help='Depth of resnet (10 | 18 | 34 | 50 | 101)')
-    parser.add_argument(
-        '--resnet_shortcut',
-        default='B',
-        type=str,
-        help='Shortcut type of resnet (A | B)')
-    parser.add_argument(
-        '--wide_resnet_k', default=2, type=int, help='Wide resnet k')
-    parser.add_argument(
-        '--resnext_cardinality',
-        default=32,
-        type=int,
-        help='ResNeXt cardinality')
+        '--no_cuda', action='store_true', help='If true, cuda is not used.')
+    parser.set_defaults(no_cuda=False)
     parser.add_argument(
         '--manual_seed', default=1, type=int, help='Manually set random seed')
-
+    
     args = parser.parse_args()
-
+    
+    print_out_args(args)
     return args
+
+
+def print_out_args(args):
+    '''
+    Fashionable (?) way to print arguments
+    '''
+    
+    print('Arguments:')
+    print('-'*50)
+    
+    for k, v in vars(args).items():
+        print('{}:\t{}'.format(k, v))
+    
+    print('-'*50)
+    
+        
+if __name__=="__main__":
+    args = get_args()

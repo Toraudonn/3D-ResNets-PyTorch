@@ -9,6 +9,9 @@ def generate_model(opt):
         'resnet', 'preresnet', 'wideresnet', 'resnext', 'densenet'
     ]
 
+    ###################################################################
+    # ResNet
+    ###################################################################
     if opt.model == 'resnet':
         assert opt.model_depth in [10, 18, 34, 50, 101, 152, 200]
 
@@ -56,6 +59,10 @@ def generate_model(opt):
                 shortcut_type=opt.resnet_shortcut,
                 sample_size=opt.sample_size,
                 sample_duration=opt.sample_duration)
+            
+    ###################################################################
+    # Wider ResNet
+    ###################################################################
     elif opt.model == 'wideresnet':
         assert opt.model_depth in [50]
 
@@ -68,6 +75,10 @@ def generate_model(opt):
                 k=opt.wide_resnet_k,
                 sample_size=opt.sample_size,
                 sample_duration=opt.sample_duration)
+            
+    ###################################################################
+    # ResNext
+    ###################################################################
     elif opt.model == 'resnext':
         assert opt.model_depth in [50, 101, 152]
 
@@ -94,6 +105,10 @@ def generate_model(opt):
                 cardinality=opt.resnext_cardinality,
                 sample_size=opt.sample_size,
                 sample_duration=opt.sample_duration)
+            
+    ###################################################################
+    # Pre-ResNet
+    ###################################################################
     elif opt.model == 'preresnet':
         assert opt.model_depth in [18, 34, 50, 101, 152, 200]
 
@@ -135,6 +150,10 @@ def generate_model(opt):
                 shortcut_type=opt.resnet_shortcut,
                 sample_size=opt.sample_size,
                 sample_duration=opt.sample_duration)
+            
+    ###################################################################
+    # DenseNet
+    ###################################################################
     elif opt.model == 'densenet':
         assert opt.model_depth in [121, 169, 201, 264]
 
@@ -160,18 +179,23 @@ def generate_model(opt):
                 num_classes=opt.n_classes,
                 sample_size=opt.sample_size,
                 sample_duration=opt.sample_duration)
-
+    
+    ###################################################################
+    # Finalizing the model
+    ###################################################################
     if not opt.no_cuda:
+        
         model = model.cuda()
-        model = nn.DataParallel(model, device_ids=[0,1])
+        model = nn.DataParallel(model, device_ids=opt.device_ids)
 
         if opt.pretrain_path:
             print('loading pretrained model {}'.format(opt.pretrain_path))
             pretrain = torch.load(opt.pretrain_path)
-            assert opt.arch == pretrain['arch']
+            assert opt.arch == pretrain['arch']  # ensure that pretrain model is the same architecture
 
             model.load_state_dict(pretrain['state_dict'])
-
+            
+            # change the fc layer output size
             if opt.model == 'densenet':
                 model.module.classifier = nn.Linear(
                     model.module.classifier.in_features, opt.n_finetune_classes)
@@ -180,7 +204,8 @@ def generate_model(opt):
                 model.module.fc = nn.Linear(model.module.fc.in_features,
                                             opt.n_finetune_classes)
                 model.module.fc = model.module.fc.cuda()
-
+            
+            # 
             parameters = get_fine_tuning_parameters(model, opt.ft_begin_index)
             return model, parameters
     else:
